@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "realtime-olap-benchmark"
+version = "0.1.0"
+description = "Star Schema Benchmark and TPC-H queries timed cold and hot on DuckDB, ClickHouse, Apache Doris and StarRocks, with medians and a cross-engine answer check."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "duckdb>=1.4,<3",
+    "pymysql>=1.1.1,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-timeout>=2.3", "ruff>=0.6", "mypy>=1.11", "pip-audit>=2.7", "types-PyMySQL>=1.1"]
+
+[project.scripts]
+olapbench = "realtime_olap_benchmark.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+realtime_olap_benchmark = ["py.typed", "queries/*/*.sql", "queries/*/*/*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+timeout = 300
+markers = [
+    "server: needs a running server engine (ClickHouse, Doris or StarRocks; CI engines job)",
+]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = [".tmp", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "S", "SIM", "RUF", "N", "C4", "PT", "RET", "PIE", "PERF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S311", "S608"]
+"src/realtime_olap_benchmark/datagen.py" = ["S311"]
+# Table and database names come from the fixed schema, never from user input.
+"src/realtime_olap_benchmark/engines/*.py" = ["S608"]
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]

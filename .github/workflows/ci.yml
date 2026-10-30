@@ -1,0 +1,95 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      scale_factor:
+        description: "Scale factor for the engines job (0 < sf <= 10)"
+        default: "0.1"
+
+# Least privilege: the workflow can read the code and nothing else.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Every action is pinned to a full commit SHA.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: make ci
+      - name: Known-vulnerability audit
+        run: make audit
+      - name: DuckDB smoke benchmark (job summary)
+        run: |
+          olapbench gen --suite ssb --sf 0.01 --out data/ssb
+          olapbench run --engine duckdb --suite ssb --data data/ssb --out results/ci/duckdb-ssb.json --cold-runs 1 --hot-runs 3
+          olapbench report results/ci/duckdb-ssb.json --out results/ci/report.md
+          cat results/ci/report.md >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=DuckDB smoke::$(grep -c '^| Q' results/ci/report.md) SSB queries ran at scale factor 0.01"
+
+  # The four engines on one runner: ClickHouse, Doris and StarRocks start one at a time from
+  # digest-pinned images (docker/compose.yml), then DuckDB runs embedded. Page cache dropped
+  # before every cold run; answers are compared across engines.
+  engines:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      SF: ${{ github.event.inputs.scale_factor || '0.1' }}
+      CLICKHOUSE_USER: bench
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e .
+      - name: Host settings for Doris (memory maps, no swap) and a random ClickHouse password
+        run: |
+          sudo sysctl -w vm.max_map_count=2000000
+          sudo swapoff -a
+          pw=$(openssl rand -hex 16)
+          echo "::add-mask::$pw"
+          echo "CLICKHOUSE_PASSWORD=$pw" >> "$GITHUB_ENV"
+      - name: Generate data
+        run: |
+          olapbench gen --suite ssb --sf "$SF" --out data/ssb
+          olapbench gen --suite tpch --sf "$SF" --out data/tpch
+      - name: Server engines, one at a time
+        run: bash scripts/bench_servers.sh data results/ci clickhouse doris starrocks
+      - name: DuckDB
+        if: always()
+        run: |
+          for suite in ssb tpch; do
+            olapbench run --engine duckdb --suite "$suite" --data "data/$suite" \
+              --out "results/ci/duckdb-$suite.json" --drop-os-cache
+          done
+      - name: Report and cross-engine answer check
+        if: always()
+        run: |
+          olapbench report results/ci/*.json --out results/ci/report.md --strict | tee -a "$GITHUB_STEP_SUMMARY"
+          python - <<'EOF'
+          import glob, json, math, statistics
+          for path in sorted(glob.glob("results/ci/*.json")):
+              d = json.load(open(path))
+              hot = [q["hot"]["median_ms"] for q in d["queries"] if q["status"] == "ok"]
+              gm = math.exp(statistics.fmean(math.log(h) for h in hot)) if hot else 0
+              bad = len(d["queries"]) - len(hot)
+              print(f"::notice title={d['engine']} {d['suite']} sf={d['scale_factor']}::"
+                    f"{d['engine_version']}: {len(hot)} ok, {bad} failed, hot geomean {gm:.1f} ms")
+          EOF
