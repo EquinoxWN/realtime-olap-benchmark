@@ -13,6 +13,13 @@ COMPOSE=(docker compose -f "$(dirname "$0")/../docker/compose.yml")
 RUNS=(--cold-runs "${COLD_RUNS:-3}" --warmup-runs 1 --hot-runs "${HOT_RUNS:-5}" --drop-os-cache)
 mkdir -p "$OUT"
 
+# Print the last lines of a log as one ::error annotation (annotations are readable without a login).
+annotate() {
+  local msg
+  msg=$(tail -n "${3:-15}" "$2" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+  echo "::error title=$1::$msg"
+}
+
 for engine in "${ENGINES[@]}"; do
   case "$engine" in clickhouse|doris|starrocks) ;; *) echo "unknown engine $engine" >&2; exit 2 ;; esac
   echo "::group::$engine"
@@ -20,12 +27,21 @@ for engine in "${ENGINES[@]}"; do
   status=0
   if olapbench wait --engine "$engine" --timeout 600; then
     for suite in ssb tpch; do
+      rc=0
       olapbench run --engine "$engine" --suite "$suite" --data "$DATA/$suite" \
-        --out "$OUT/$engine-$suite.json" "${RUNS[@]}" || status=1
+        --out "$OUT/$engine-$suite.json" "${RUNS[@]}" > "$OUT/$engine-$suite.log" 2>&1 || rc=$?
+      cat "$OUT/$engine-$suite.log"
+      if [ "$rc" -ne 0 ]; then status=1; annotate "$engine $suite run" "$OUT/$engine-$suite.log"; fi
     done
   else
-    "${COMPOSE[@]}" --profile "$engine" logs --tail 80 || true
     status=1
+  fi
+  if [ "$status" -ne 0 ]; then
+    "${COMPOSE[@]}" --profile "$engine" logs --tail 80 > "$OUT/$engine-containers.log" 2>&1 || true
+    cat "$OUT/$engine-containers.log"
+    annotate "$engine container logs" "$OUT/$engine-containers.log" 20
+    df -h / > "$OUT/$engine-disk.log" 2>&1 || true
+    annotate "$engine disk" "$OUT/$engine-disk.log" 2
   fi
   "${COMPOSE[@]}" --profile "$engine" down -v
   echo "::endgroup::"
