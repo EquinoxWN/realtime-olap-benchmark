@@ -82,8 +82,8 @@ comparison on their own hardware.
 
 - **M1:** SSB and TPC-H queries cold and hot, several times, medians reported (built and
   measured on DuckDB). All four engines in Docker or embedded on one machine with versions and
-  settings recorded: DuckDB done; ClickHouse, Doris and StarRocks compose file and CI job written,
-  first CI run pending.
+  settings recorded: DuckDB measured locally; ClickHouse, Doris and StarRocks measured in the CI
+  `engines` job (first green run 2026-10-31).
 - **M2:** Kafka ingestion (rows per second, freshness); join-heavy and single-table queries
   reported separately.
 - **M3:** per-engine table tuning, documented; findings on speed, freshness and operating cost.

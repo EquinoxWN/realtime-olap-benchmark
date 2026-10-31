@@ -3,7 +3,7 @@
 [![ci](https://github.com/EquinoxWN/realtime-olap-benchmark/actions/workflows/ci.yml/badge.svg)](https://github.com/EquinoxWN/realtime-olap-benchmark/actions/workflows/ci.yml)
 ![status](https://img.shields.io/badge/status-M1%20done%2C%20M2%20in%20progress-yellow)
 
-> Seeded Star Schema Benchmark and TPC-H data and SQL, each query timed cold and hot several times on DuckDB, with medians, spread, versions, settings and answer checks. Adapters and a digest-pinned Docker CI job for ClickHouse, Apache Doris and StarRocks are written; their first CI run is pending.
+> Seeded Star Schema Benchmark and TPC-H data and SQL, each query timed cold and hot several times on DuckDB, with medians, spread, versions, settings and answer checks. ClickHouse, Apache Doris and StarRocks run the same queries in a digest-pinned Docker CI job, with every answer cross-checked.
 
 Part of my **Data Engineering** list · SQL · Python
 
@@ -22,7 +22,18 @@ DuckDB's default 20 threads on a laptop shared with other builds:
 ![lint, type check, tests and dependency audit](docs/proof/tests.jpg)
 
 ClickHouse, Doris and StarRocks run only in the CI `engines` job (Docker is not used on the
-development machine); that job has not run yet, so there are no server numbers yet. See
+development machine). First green run ([run](https://github.com/EquinoxWN/realtime-olap-benchmark/actions/runs/41214235144)), one engine at a time on one GitHub runner,
+all answers equal across engines:
+
+| Engine (CI runner, SF 0.1) | SSB hot geomean | TPC-H hot geomean |
+|---|---|---|
+| ClickHouse 26.3.60.2 | 9.6 ms (13/13 ok) | 12.3 ms (8/8 ok) |
+| Apache Doris 4.1.3 | 30.4 ms (13/13 ok) | 26.3 ms (8/8 ok) |
+| StarRocks 4.1.6 | 30.0 ms (13/13 ok) | 19.8 ms (8/8 ok) |
+| DuckDB 2.0.0 | 3.0 ms (13/13 ok) | 3.6 ms (8/8 ok) |
+
+These are small-scale (SF 0.1) numbers from a shared CI runner with default settings: they show
+the harness works end to end, not which engine is faster at production scale. See
 [Tests and results](#tests-and-results).
 
 ## Architecture
@@ -48,7 +59,7 @@ flowchart LR
 
 ## How it works
 
-_Step 2 is built and measured on DuckDB (M1). For step 1, the ClickHouse, Doris and StarRocks adapters, compose file and CI job are written, but the first CI run is pending. The rest is on the [roadmap](#roadmap)._
+_Step 2 is built and measured on DuckDB (M1). For step 1, ClickHouse, Doris and StarRocks run in the CI `engines` job. The rest is on the [roadmap](#roadmap)._
 
 1. All four engines run in Docker on one machine, with versions and settings documented.
 2. Star Schema Benchmark and TPC-H queries run cold and hot, several times each, reporting medians.
@@ -86,7 +97,7 @@ containers, started one at a time by `scripts/bench_servers.sh` so they never sh
 
 | Area | In M1 | Planned |
 |---|---|---|
-| Engines | DuckDB 2.0 (embedded, measured); adapters, digest-pinned compose file and CI job for ClickHouse 26.3, Apache Doris 4.1.3, StarRocks 4.1.6 (first CI run pending) | Per-engine tuning: sort keys, partitions, materialized views (M3) |
+| Engines | DuckDB 2.0 (embedded, measured); ClickHouse 26.3, Apache Doris 4.1.3, StarRocks 4.1.6 in a digest-pinned compose file, measured in CI | Per-engine tuning: sort keys, partitions, materialized views (M3) |
 | Workloads | Star Schema Benchmark (13 queries), TPC-H subset (8 queries), seeded Python generator | Kafka streaming ingest and freshness (M2) |
 | Harness | Python CLI `olapbench`: cold / warm-up / hot runs, medians, CV, geomean, answer check, validated JSON results | Join-heavy vs single-table reporting (M2), cost per query (M3) |
 | Ops | Digest-pinned images, one engine at a time, GitHub Actions with SHA-pinned actions | - |
@@ -145,7 +156,7 @@ Full numbers, commands and engine settings: [docs/results/m1.md](docs/results/m1
 | Lint / types / audit | ruff and `mypy --strict` clean; `pip-audit`: no known vulnerabilities |
 | DuckDB, SF 0.1, default 20 threads | hot geomean SSB **31.1 ms**, TPC-H **35.4 ms**; cold 42.1 / 47.2 ms; median hot CV 0.20 / 0.21 |
 | DuckDB, SF 0.1, `--threads 4` | hot geomean SSB **16.2 ms**, TPC-H **11.4 ms**; median hot CV 0.11 / 0.10 (less thread contention on a shared CPU) |
-| ClickHouse, Doris, StarRocks | CI `engines` job written, **not run yet**; no numbers |
+| ClickHouse, Doris, StarRocks (CI runner) | SSB hot geomean 9.6 / 30.4 / 30.0 ms, TPC-H 12.3 / 26.3 / 19.8 ms; 21/21 queries ok on each, answers equal |
 
 The generator follows the SSB and TPC-H schemas and value domains but is not `dbgen`
 ([ADR 0003](docs/adr/0003-seeded-generator-instead-of-dbgen.md)), so these numbers are not
@@ -155,7 +166,7 @@ comparable with official results.
 
 **M1** (≈8 h)
 - [x] Write `docs/rfc/0001-design.md`: problem, goals, non-goals, chosen design
-- [ ] All four engines run in Docker on one machine, with versions and settings documented. (DuckDB embedded and measured; for the three servers, the compose file and CI job are written, but the first CI run is pending)
+- [x] All four engines run in Docker on one machine, with versions and settings documented. (DuckDB embedded; ClickHouse, Doris and StarRocks in the CI `engines` job, one at a time on one runner)
 - [x] Star Schema Benchmark and TPC-H queries run cold and hot, several times each, reporting medians.
 
 **M2** (≈8 h)
