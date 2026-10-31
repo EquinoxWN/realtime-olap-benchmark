@@ -33,7 +33,8 @@ services:
       FE_SERVERS: fe1:127.0.0.1:9010
       FE_ID: "1"
     network_mode: host
-    mem_limit: 3g
+    # The FE JVM's default heap is larger than 3 GB; a 3 GB cap killed it while lineorder loaded.
+    mem_limit: 8g
 
   doris-be:
     profiles: [doris]

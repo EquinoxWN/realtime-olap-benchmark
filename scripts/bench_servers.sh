@@ -42,6 +42,9 @@ for engine in "${ENGINES[@]}"; do
     annotate "$engine container logs" "$OUT/$engine-containers.log" 20
     df -h / > "$OUT/$engine-disk.log" 2>&1 || true
     annotate "$engine disk" "$OUT/$engine-disk.log" 2
+    # Exit code and OOM flag of each container, to tell a crash from a memory kill.
+    docker ps -aq --filter "label=com.docker.compose.project" | xargs -r docker inspect       -f '{{.Name}} exit={{.State.ExitCode}} oomkilled={{.State.OOMKilled}}' > "$OUT/$engine-state.log" 2>&1 || true
+    annotate "$engine container state" "$OUT/$engine-state.log" 10
   fi
   "${COMPOSE[@]}" --profile "$engine" down -v
   echo "::endgroup::"
