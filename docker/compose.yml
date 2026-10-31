@@ -33,8 +33,16 @@ services:
       FE_SERVERS: fe1:127.0.0.1:9010
       FE_ID: "1"
     network_mode: host
-    # The FE JVM's default heap is larger than 3 GB; a 3 GB cap killed it while lineorder loaded.
-    mem_limit: 8g
+    # The image's fe.conf sets an 8 GB heap, more than the container may use (CI saw OOM kills at
+    # 3 GB and 8 GB limits); cap the heap at 4 GB, then run the image's own entrypoint.
+    entrypoint:
+      - bash
+      - -c
+      - >-
+        sed -i 's/-Xmx8192m -Xms8192m/-Xmx4096m -Xms1024m/' /opt/apache-doris/fe/conf/fe.conf &&
+        grep -o -- '-Xmx[0-9]*m' /opt/apache-doris/fe/conf/fe.conf &&
+        exec bash init_fe.sh
+    mem_limit: 6g
 
   doris-be:
     profiles: [doris]
