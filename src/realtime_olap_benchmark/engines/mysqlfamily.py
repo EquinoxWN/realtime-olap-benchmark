@@ -45,6 +45,26 @@ def batches(table: Table, path: Path, size: int = BATCH_ROWS) -> Iterator[list[t
             yield batch
 
 
+def backends_ready(names: Sequence[str], rows: Sequence[Sequence[object]]) -> bool:
+    """A backend can hold tables once it is alive and its disks report capacity."""
+    if "alive" not in names:
+        return False
+    alive = names.index("alive")
+    cap = names.index("totalcapacity") if "totalcapacity" in names else None
+    for r in rows:
+        if str(r[alive]).lower() != "true":
+            continue
+        if cap is None:
+            return True
+        parts = str(r[cap]).split()
+        try:
+            if parts and float(parts[0]) > 0:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 class MySQLFamilyEngine(Engine):
     """Shared code for Doris and StarRocks; subclasses set names, version query and settings."""
 
@@ -106,7 +126,7 @@ class MySQLFamilyEngine(Engine):
             raise EngineError(f"{self.name}: {e}") from e
 
     def ready(self) -> bool:
-        """True when at least one backend reports Alive = true."""
+        """True when a backend is alive and has reported disk capacity."""
         try:
             if self._con is None:
                 self.connect()
@@ -119,10 +139,7 @@ class MySQLFamilyEngine(Engine):
         except (EngineError, pymysql.MySQLError):
             self.close()
             return False
-        if "alive" not in names:
-            return False
-        i = names.index("alive")
-        return any(str(r[i]).lower() == "true" for r in rows)
+        return backends_ready(names, rows)
 
     def version(self) -> str:
         """Version string from the engine."""

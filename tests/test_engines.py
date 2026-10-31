@@ -21,6 +21,7 @@ from realtime_olap_benchmark.engines.duck import DuckDBEngine
 from realtime_olap_benchmark.engines.mysqlfamily import (
     DorisEngine,
     StarRocksEngine,
+    backends_ready,
     batches,
     convert,
 )
@@ -198,3 +199,14 @@ def test_mysql_family_without_server(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "ANALYZE" in s.analyze_sql
     assert "page caches are not cleared" in s.cold_method
     assert s.settings()["replication_num"] == "1"
+
+
+def test_backends_ready_needs_alive_backend_with_disk() -> None:
+    """A Doris/StarRocks backend counts only once it is alive and reports disk capacity."""
+    names = ["backendid", "alive", "totalcapacity"]
+    assert not backends_ready(names, [(1, "false", "78.552 GB")])
+    assert not backends_ready(names, [(1, "true", "0.000")])
+    assert not backends_ready(names, [(1, "true", "")])
+    assert backends_ready(names, [(1, "true", "0.000"), (2, "true", "78.552 GB")])
+    assert backends_ready(["alive"], [("true",)])
+    assert not backends_ready(["host"], [("127.0.0.1",)])
