@@ -66,3 +66,9 @@ def test_failed_queries_not_compared(ssb_result: RunResult) -> None:
     checked, bad = compare([ssb_result, o])
     assert checked == 12
     assert bad == []
+
+
+def test_large_sums_compare_within_relative_tolerance() -> None:
+    """Large aggregates may differ by more than 0.01 in the last digits (float sums) and still agree."""
+    assert cells_equal("123456789012.00", "123456789012.50")  # 4e-12 relative
+    assert not cells_equal("123456789012", "123456989012")  # 1.6e-6 relative

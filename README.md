@@ -16,7 +16,7 @@ DuckDB's default 20 threads on a laptop shared with other builds:
 
 ![olapbench run and report on DuckDB at scale factor 0.1](docs/proof/bench.jpg)
 
-98 tests pass locally, including plain-Python recomputation of eight query answers; ruff,
+107 tests pass locally (the screenshot is from the M1 run with 98), including plain-Python recomputation of eight query answers; ruff,
 `mypy --strict` and `pip-audit` are clean:
 
 ![lint, type check, tests and dependency audit](docs/proof/tests.jpg)
@@ -112,7 +112,7 @@ Language: **Python** (3.11+) and **SQL**. Code in [`src/realtime_olap_benchmark/
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 make setup            # install the package and dev tools
 make lint             # ruff, ruff format, mypy --strict
-make test             # 98 tests
+make test             # 107 tests
 make bench SF=0.1     # SSB and TPC-H on DuckDB, prints the report
 ```
 
@@ -131,7 +131,8 @@ make bench-servers SF=0.1
 ```
 
 Connection settings come from the environment: `CLICKHOUSE_URL`, `CLICKHOUSE_USER`,
-`CLICKHOUSE_PASSWORD`; `DORIS_HOST`, `DORIS_PORT` (9030); `STARROCKS_HOST`, `STARROCKS_PORT`.
+`CLICKHOUSE_PASSWORD`; `DORIS_HOST`, `DORIS_PORT` (9030), `DORIS_USER` (root), `DORIS_PASSWORD`; `STARROCKS_HOST`,
+`STARROCKS_PORT`, `STARROCKS_USER`, `STARROCKS_PASSWORD`.
 
 ## Tests and results
 
@@ -145,14 +146,17 @@ Full numbers, commands and engine settings: [docs/results/m1.md](docs/results/m1
 | `test_oracle.py` | 6 | All 21 queries run; SSB Q1.1-Q1.3, Q2.1 and TPC-H Q1, Q6, Q12, Q14 equal plain-Python recomputation |
 | `test_harness.py` | 13 | Cache reset before each cold run; warm-up untimed; failures recorded; changing answers caught; lost rows caught |
 | `test_results.py` | 21 | Statistics; result-file round trip; 13 kinds of malformed document rejected |
-| `test_answers.py` | 5 | Tolerant numeric comparison; disagreements and different datasets reported |
-| `test_engines.py` | 9 | ClickHouse protocol against a fake server (credentials only in headers); Doris/StarRocks loader; DuckDB cold reset |
+| `test_answers.py` | 6 | Tolerant numeric comparison (absolute and relative); disagreements and different datasets reported |
+| `test_engines.py` | 10 | ClickHouse protocol against a fake server (credentials only in headers); Doris/StarRocks loader and backend readiness; DuckDB cold reset |
+| `test_fsutil.py` | 7 | Result, manifest and report files are written atomically; a bad `DORIS_PORT`/`STARROCKS_PORT` gives a clear error |
 | `test_cli.py` | 4 | `gen`, `run`, `report --strict` end to end; error exits |
 | `test_smoke.py` | 1 | Package version |
 
 | Check | Result |
 |---|---|
-| Tests (`make test`) | **98 passed**, 0 failed |
+| Tests (`make test`) | **107 passed**, 0 failed |
+
+Quality check against the 10 engineering rules, with the mutation table: [docs/quality/2026-11-01.md](docs/quality/2026-11-01.md).
 | Lint / types / audit | ruff and `mypy --strict` clean; `pip-audit`: no known vulnerabilities |
 | DuckDB, SF 0.1, default 20 threads | hot geomean SSB **31.1 ms**, TPC-H **35.4 ms**; cold 42.1 / 47.2 ms; median hot CV 0.20 / 0.21 |
 | DuckDB, SF 0.1, `--threads 4` | hot geomean SSB **16.2 ms**, TPC-H **11.4 ms**; median hot CV 0.11 / 0.10 (less thread contention on a shared CPU) |
