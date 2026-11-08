@@ -10,6 +10,7 @@ from pathlib import Path
 from realtime_olap_benchmark.answers import compare
 from realtime_olap_benchmark.datagen import DataError, generate
 from realtime_olap_benchmark.engines import ENGINES, EngineError, make_engine
+from realtime_olap_benchmark.fsutil import write_text_atomic
 from realtime_olap_benchmark.harness import Plan, run, wait_ready
 from realtime_olap_benchmark.queries import QueryError, load_queries, select_queries
 from realtime_olap_benchmark.report import render
@@ -49,7 +50,7 @@ def _report(a: argparse.Namespace) -> int:
     text = render(runs)
     if a.out:
         a.out.parent.mkdir(parents=True, exist_ok=True)
-        a.out.write_text(text, encoding="utf-8")
+        write_text_atomic(a.out, text)
     print(text, end="")
     _, bad = compare(runs)
     return 1 if bad and a.strict else 0

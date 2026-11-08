@@ -44,6 +44,14 @@ def env(name: str, default: str) -> str:
     return os.environ.get(name, default)
 
 
+def port_from_env(name: str, default: str) -> int:
+    """A TCP port from the environment, with a clear error when it is not 1..65535."""
+    raw = env(name, default)
+    if not raw.isdigit() or not 1 <= int(raw) <= 65535:
+        raise EngineError(f"{name}={raw!r} is not a TCP port (1..65535)")
+    return int(raw)
+
+
 class Engine(ABC):
     """One analytics engine: connect, create and load tables, reset caches, run a query."""
 

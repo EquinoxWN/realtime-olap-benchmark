@@ -15,6 +15,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from realtime_olap_benchmark.fsutil import write_text_atomic
 from realtime_olap_benchmark.schema import Table, suite_tables
 
 GENERATOR_VERSION = 1
@@ -429,7 +430,7 @@ def generate(suite: str, sf: float, out: Path, seed: int = 42) -> Manifest:
         "rows": rows,
         "sha256": digests,
     }
-    (out / "manifest.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    write_text_atomic(out / "manifest.json", json.dumps(payload, indent=2) + "\n")
     return manifest
 
 

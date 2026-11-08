@@ -9,6 +9,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from realtime_olap_benchmark.fsutil import write_text_atomic
+
 SCHEMA_VERSION = 1
 MAX_ANSWER_ROWS = 1000
 
@@ -202,7 +204,7 @@ def save(result: RunResult, path: Path) -> None:
     doc = result.to_dict()
     from_dict(json.loads(json.dumps(doc)))
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
+    write_text_atomic(path, json.dumps(doc, indent=1) + "\n")
 
 
 def load(path: Path) -> RunResult:

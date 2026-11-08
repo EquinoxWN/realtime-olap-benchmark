@@ -9,7 +9,14 @@ from pathlib import Path
 
 import pymysql
 
-from realtime_olap_benchmark.engines.base import Cells, Engine, EngineError, cells, env
+from realtime_olap_benchmark.engines.base import (
+    Cells,
+    Engine,
+    EngineError,
+    cells,
+    env,
+    port_from_env,
+)
 from realtime_olap_benchmark.schema import Kind, Table, create_table_sql
 
 DATABASE = "bench"
@@ -76,7 +83,7 @@ class MySQLFamilyEngine(Engine):
     def __init__(self, timeout: int = 600) -> None:
         """Read host, port, user and password from <PREFIX>_HOST/_PORT/_USER/_PASSWORD."""
         self.host = env(f"{self.prefix}_HOST", "127.0.0.1")
-        self.port = int(env(f"{self.prefix}_PORT", "9030"))
+        self.port = port_from_env(f"{self.prefix}_PORT", "9030")
         self.user = env(f"{self.prefix}_USER", "root")
         self.password = env(f"{self.prefix}_PASSWORD", "")
         self.timeout = timeout
